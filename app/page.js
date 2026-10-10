@@ -393,7 +393,7 @@ export default function Home() {
                 className="flex-1 border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
               <div className="px-4 py-3 bg-slate-200 border border-slate-300 rounded-xl text-slate-700">
-                @inbound.qmail.lol
+                @qmail.lol
               </div>
             </div>
 

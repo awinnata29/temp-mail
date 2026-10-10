@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "temp-mail",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // Aset statis hasil build Next.js (OpenNext)
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // ---- Database Cloudflare D1 (ganti MySQL) ----
+  // Isi "database_id" setelah membuat DB:
+  //   npx wrangler d1 create temp_mail_db
+  // lalu salin id yang muncul ke sini.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "temp_mail_db",
+      "database_id": "61e6f602-220b-40d4-8b1c-a0cdefaf7b0e"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

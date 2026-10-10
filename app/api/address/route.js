@@ -1,4 +1,4 @@
-import db from "@/lib/db";
+import { query, run } from "@/lib/db";
 
 function sanitizeUsername(value) {
   return value
@@ -11,8 +11,6 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const username = body.username;
-
-    console.log("BODY DARI FRONTEND:", body);
 
     if (!username || !username.trim()) {
       return Response.json(
@@ -30,16 +28,12 @@ export async function POST(request) {
       );
     }
 
-    const email = `${cleanUsername}@inbound.qmail.lol`;
+    const email = `${cleanUsername}@qmail.lol`;
 
-    console.log("EMAIL YANG AKAN DICEK:", email);
-
-    const [existingRows] = await db.query(
+    const existingRows = await query(
       "SELECT * FROM addresses WHERE email = ? LIMIT 1",
       [email]
     );
-
-    console.log("HASIL CEK EMAIL:", existingRows);
 
     if (existingRows.length > 0) {
       return Response.json({
@@ -53,18 +47,16 @@ export async function POST(request) {
       });
     }
 
-    const [result] = await db.query(
+    const result = await run(
       "INSERT INTO addresses (email, username) VALUES (?, ?)",
       [email, cleanUsername]
     );
-
-    console.log("HASIL INSERT:", result);
 
     return Response.json({
       success: true,
       message: "Email berhasil dibuat dan disimpan ke database",
       data: {
-        id: result.insertId,
+        id: result.last_row_id,
         username: cleanUsername,
         email,
       },

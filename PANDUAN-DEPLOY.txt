@@ -1,0 +1,132 @@
+============================================================
+  PANDUAN DEPLOY TEMP-MAIL KE CLOUDFLARE (100% Cloudflare)
+============================================================
+
+Arsitektur baru (tanpa Rumahweb/cPanel/MySQL):
+
+  Email masuk ke *@inbound.qmail.lol
+        |
+        v
+  Cloudflare Email Routing
+        |
+        v
+  Email Worker (worker/email-handler.js)  --> simpan ke D1
+        |
+        v
+  Cloudflare D1 (database SQLite)
+        ^
+        |
+  Next.js app (OpenNext) <-- baca D1, tampilkan inbox
+
+Semua jalan di Cloudflare. Worker + web + database jadi SATU project.
+
+------------------------------------------------------------
+  PRASYARAT
+------------------------------------------------------------
+- Node.js sudah terpasang (sudah ada).
+- Domain qmail.lol sudah ada di akun Cloudflare kamu (sudah).
+- Jalankan semua perintah di folder project:
+      cd c:\xampp\htdocs\temp-mail
+
+------------------------------------------------------------
+  LANGKAH 1 — Login ke Cloudflare (sekali saja)
+------------------------------------------------------------
+    npx wrangler login
+
+Browser kebuka -> Authorize. Setelah sukses, lanjut.
+
+Cek sudah login:
+    npx wrangler whoami
+
+------------------------------------------------------------
+  LANGKAH 2 — Buat database D1
+------------------------------------------------------------
+    npx wrangler d1 create temp_mail_db
+
+Output akan menampilkan "database_id". CONTOH:
+    [[d1_databases]]
+    binding = "DB"
+    database_name = "temp_mail_db"
+    database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+SALIN nilai database_id itu, lalu buka file wrangler.jsonc dan GANTI
+"ISI_DATABASE_ID_DISINI" dengan database_id tsb.
+
+------------------------------------------------------------
+  LANGKAH 3 — Buat tabel (migrasi skema) ke D1
+------------------------------------------------------------
+Ke database REMOTE (yang dipakai saat live):
+    npx wrangler d1 execute temp_mail_db --remote --file=./schema.sql
+
+(Opsional) buat testing LOKAL:
+    npx wrangler d1 execute temp_mail_db --local --file=./schema.sql
+
+Cek tabel terbuat:
+    npx wrangler d1 execute temp_mail_db --remote --command "SELECT name FROM sqlite_master WHERE type='table';"
+
+------------------------------------------------------------
+  LANGKAH 4 — Deploy aplikasi (web + email worker + D1)
+------------------------------------------------------------
+    npm run deploy
+
+Perintah ini: build Next.js -> build OpenNext -> deploy ke Cloudflare Workers.
+Setelah selesai, muncul URL worker, contoh:
+    https://temp-mail.<subdomain>.workers.dev
+
+Buka URL itu -> aplikasi temp-mail sudah LIVE.
+
+Cek koneksi DB: buka  <URL>/api/test-db  -> harus {"success":true,...}
+
+------------------------------------------------------------
+  LANGKAH 5 — Hubungkan domain qmail.lol ke Worker (opsional tapi disarankan)
+------------------------------------------------------------
+Supaya aplikasi diakses di domain sendiri (mis. mail.qmail.lol):
+1. Cloudflare Dashboard -> Workers & Pages -> pilih worker "temp-mail"
+   -> Settings -> Domains & Routes -> Add -> Custom Domain
+2. Masukkan subdomain, mis. mail.qmail.lol -> Add Domain.
+
+------------------------------------------------------------
+  LANGKAH 6 — Set Cloudflare Email Routing ke Worker
+------------------------------------------------------------
+Ini bagian yang bikin email masuk DISIMPAN ke D1 (ganti sistem cPanel lama).
+
+1. Cloudflare Dashboard -> pilih domain "qmail.lol" -> Email -> Email Routing.
+2. Pastikan Email Routing ENABLED (MX record ter-set otomatis oleh Cloudflare).
+3. Aplikasi memakai domain  qmail.lol  (alamat: username@qmail.lol).
+   Karena alamat DINAMIS (user bikin username bebas), pakai CATCH-ALL:
+       Email Routing -> Routing rules -> "Catch-all address" -> Edit
+       -> Action: "Send to a Worker" -> pilih worker "temp-mail"
+       -> Save (dan pastikan Catch-all ENABLED).
+4. Save.
+
+   Dengan catch-all + Send to Worker, SEMUA email ke *@qmail.lol diteruskan
+   ke worker temp-mail, lalu disimpan ke D1 (kalau alamatnya terdaftar di app).
+
+------------------------------------------------------------
+  LANGKAH 7 — TES END-TO-END
+------------------------------------------------------------
+1. Buka aplikasi (URL worker / domain) -> buat username, mis. "coba".
+   -> alamat jadi coba@qmail.lol (atau coba@inbound.qmail.lol).
+2. Kirim email dari Gmail ke alamat itu.
+3. Tunggu beberapa detik -> klik Refresh Inbox / tunggu auto-refresh.
+   Email harus muncul.
+4. Kalau tidak muncul, cek log worker:
+       npx wrangler tail temp-mail
+
+------------------------------------------------------------
+  DEVELOPMENT LOKAL
+------------------------------------------------------------
+- Jalankan dev biasa (bisa akses D1 lokal):
+      npm run dev
+  (butuh tabel lokal dulu: wrangler d1 execute ... --local --file=./schema.sql)
+
+- Preview di runtime Workers (mirip production):
+      npm run preview
+
+------------------------------------------------------------
+  CATATAN
+------------------------------------------------------------
+- Script `npm run build` = next build saja (dipakai internal OpenNext).
+- Deploy = `npm run deploy` (build + deploy OpenNext).
+- Zona waktu inbox ditampilkan WIB (UTC+7) di app/api/inbox/route.js.
+- Tidak ada lagi MySQL / mysql2 / Rumahweb / cPanel.

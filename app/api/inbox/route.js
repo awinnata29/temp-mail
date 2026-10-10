@@ -1,4 +1,4 @@
-import db from "@/lib/db";
+import { query, run } from "@/lib/db";
 
 export async function GET(request) {
   try {
@@ -15,15 +15,17 @@ export async function GET(request) {
       );
     }
 
-    const [rows] = await db.query(
+    // SQLite: format tanggal pakai strftime (ganti DATE_FORMAT MySQL).
+    // received_at disimpan sebagai UTC ('now'); +7 jam -> WIB.
+    const rows = await query(
       `
-      SELECT 
+      SELECT
         id,
-        sender AS \`from\`,
+        sender AS "from",
         subject,
         body,
         html_body,
-        DATE_FORMAT(received_at, '%d/%m/%Y %H:%i:%s') AS time
+        strftime('%d/%m/%Y %H:%M:%S', datetime(received_at, '+7 hours')) AS time
       FROM emails
       WHERE address_email = ?
       ORDER BY received_at DESC, id DESC
@@ -67,14 +69,14 @@ export async function DELETE(request) {
         );
       }
 
-      const [result] = await db.query(
+      const result = await run(
         "DELETE FROM emails WHERE address_email = ?",
         [email]
       );
 
       return Response.json({
         success: true,
-        message: `Berhasil menghapus ${result.affectedRows} email`,
+        message: `Berhasil menghapus ${result.changes} email`,
       });
     }
 
@@ -88,9 +90,9 @@ export async function DELETE(request) {
       );
     }
 
-    const [result] = await db.query("DELETE FROM emails WHERE id = ?", [id]);
+    const result = await run("DELETE FROM emails WHERE id = ?", [id]);
 
-    if (result.affectedRows === 0) {
+    if (result.changes === 0) {
       return Response.json(
         {
           success: false,

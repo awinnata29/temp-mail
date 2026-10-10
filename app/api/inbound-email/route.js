@@ -1,5 +1,9 @@
-import db from "@/lib/db";
+import { query, run } from "@/lib/db";
 
+// Endpoint HTTP penerima email (opsional / cadangan).
+// Alur UTAMA sekarang: Cloudflare Email Worker menulis langsung ke D1
+// (lihat worker/email-worker.js). Endpoint ini tetap disediakan supaya
+// email juga bisa dikirim via HTTP POST (form-data) kalau diperlukan.
 export async function POST(request) {
   try {
     const formData = await request.formData();
@@ -20,7 +24,7 @@ export async function POST(request) {
       );
     }
 
-    const [addressRows] = await db.query(
+    const addressRows = await query(
       "SELECT id FROM addresses WHERE email = ? LIMIT 1",
       [to]
     );
@@ -37,7 +41,7 @@ export async function POST(request) {
 
     const finalBody = text || html || "(Isi email kosong)";
 
-    await db.query(
+    await run(
       `
       INSERT INTO emails (address_email, sender, subject, body, html_body)
       VALUES (?, ?, ?, ?, ?)
