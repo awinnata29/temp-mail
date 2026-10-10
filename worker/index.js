@@ -1,27 +1,32 @@
 // ============================================================
 //  Worker entry gabungan: Next.js (OpenNext) + Email handler
 // ============================================================
-// OpenNext meng-generate worker Next.js di ".open-next/worker.js".
-// Di sini kita bungkus: pakai handler fetch dari OpenNext untuk web,
-// dan tambahkan handler email() untuk Cloudflare Email Routing.
-//
-// wrangler.toml -> main = "worker/index.js"
+// Mengikuti pola resmi OpenNext "Custom Worker":
+//   https://opennext.js.org/cloudflare/howtos/custom-worker
+// Re-use fetch handler yang di-generate OpenNext, tambah email handler,
+// dan re-export Durable Objects yang WAJIB (DOQueueHandler, DOShardedTagCache).
 
-import nextWorker from "../.open-next/worker.js";
+// @ts-ignore - .open-next/worker.js di-generate saat build
+import { default as handler } from "../.open-next/worker.js";
 import { handleEmail } from "./email-handler.js";
 
 export default {
-  // Request HTTP (web app Next.js) diteruskan ke worker OpenNext.
-  async fetch(request, env, ctx) {
-    return nextWorker.fetch(request, env, ctx);
-  },
+  // Request HTTP (web app Next.js)
+  fetch: handler.fetch,
 
-  // Email masuk dari Cloudflare Email Routing.
+  // Email masuk dari Cloudflare Email Routing
   async email(message, env, ctx) {
     await handleEmail(message, env);
   },
 };
 
-// Re-export Durable Object (DOQueueHandler, dll) yang dibutuhkan OpenNext,
-// kalau ada. OpenNext worker meng-export beberapa named export untuk DO.
-export * from "../.open-next/worker.js";
+// Re-export Durable Objects yang dipakai OpenNext (caching).
+// WAJIB di-export dari entry worker, kalau tidak -> runtime error.
+// Jumlah/namanya mengikuti yang di-generate .open-next/worker.js:
+//   DOQueueHandler, DOShardedTagCache, BucketCachePurge
+// @ts-ignore
+export {
+  DOQueueHandler,
+  DOShardedTagCache,
+  BucketCachePurge,
+} from "../.open-next/worker.js";
